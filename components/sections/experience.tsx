@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef } from "react"
-import { motion, useInView } from "framer-motion"
+import { motion, useInView, useScroll, useTransform, MotionValue } from "framer-motion"
 import { Building2, Calendar, ChevronRight, TrendingUp } from "lucide-react"
 
 type Experience = {
@@ -76,14 +76,11 @@ function TimelineItem({ experience, index }: { experience: Experience; index: nu
       transition={{ duration: 0.6, delay: index * 0.15 }}
       className="relative pl-8 md:pl-0 md:grid md:grid-cols-2 md:gap-8 mb-12 last:mb-0"
     >
-      {/* Timeline line and dot */}
-      <div className="absolute left-0 md:left-1/2 top-0 bottom-0 w-px bg-border md:-translate-x-1/2" />
-      <motion.div
-        initial={{ scale: 0 }}
-        animate={isInView ? { scale: 1 } : {}}
-        transition={{ duration: 0.3, delay: index * 0.15 + 0.2 }}
-        className="absolute left-0 md:left-1/2 top-0 w-4 h-4 rounded-full bg-primary glow-purple md:-translate-x-1/2 -translate-x-1/2"
-      />
+      {/* Timeline line - individual segment */}
+      <div className="absolute left-0 md:left-1/2 top-0 bottom-0 w-px bg-border/30 md:-translate-x-1/2" />
+
+      {/* Static marker dot - smaller, muted */}
+      <div className="absolute left-0 md:left-1/2 top-0 w-3 h-3 rounded-full bg-muted-foreground/30 border border-border md:-translate-x-1/2 -translate-x-1/2" />
 
       {/* Content - alternating sides on desktop */}
       <div className={`${index % 2 === 0 ? "md:text-right md:pr-12" : "md:col-start-2 md:pl-12"}`}>
@@ -130,9 +127,8 @@ function TimelineItem({ experience, index }: { experience: Experience; index: nu
             {experience.highlights.map((highlight, i) => (
               <li
                 key={i}
-                className={`flex items-start gap-2 text-sm text-muted-foreground ${
-                  index % 2 === 0 ? "md:justify-end md:text-right" : ""
-                }`}
+                className={`flex items-start gap-2 text-sm text-muted-foreground ${index % 2 === 0 ? "md:justify-end md:text-right" : ""
+                  }`}
               >
                 {index % 2 === 0 ? (
                   <>
@@ -161,9 +157,49 @@ function TimelineItem({ experience, index }: { experience: Experience; index: nu
   )
 }
 
+function ScrollingDot({
+  top,
+  scale,
+  opacity
+}: {
+  top: MotionValue<string>
+  scale: MotionValue<number>
+  opacity: MotionValue<number>
+}) {
+  return (
+    <motion.div
+      style={{ top, scale, opacity }}
+      className="absolute left-0 md:left-1/2 w-5 h-5 rounded-full bg-primary glow-purple md:-translate-x-1/2 -translate-x-1/2 z-10 pointer-events-none"
+    >
+      {/* Inner glow ring */}
+      <motion.div
+        className="absolute inset-0 rounded-full bg-primary/50"
+        animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+      />
+    </motion.div>
+  )
+}
+
 export function Experience() {
   const sectionRef = useRef<HTMLElement>(null)
+  const timelineRef = useRef<HTMLDivElement>(null)
   const isInView = useInView(sectionRef, { once: true, margin: "-100px" })
+
+  // Scroll tracking for the animated dot - must be in same component as ref
+  const { scrollYProgress } = useScroll({
+    target: timelineRef,
+    offset: ["start center", "end center"],
+  })
+
+  // Transform scroll progress to vertical position (0% to 100%)
+  const dotTop = useTransform(scrollYProgress, [0, 1], ["0%", "100%"])
+
+  // Scale the dot based on scroll - larger in middle, smaller at edges
+  const dotScale = useTransform(scrollYProgress, [0, 0.5, 1], [0.8, 1.2, 0.8])
+
+  // Opacity based on scroll position
+  const dotOpacity = useTransform(scrollYProgress, [0, 0.1, 0.9, 1], [0.5, 1, 1, 0.5])
 
   return (
     <section id="experience" ref={sectionRef} className="relative py-24 sm:py-32">
@@ -183,7 +219,13 @@ export function Experience() {
         </motion.div>
 
         {/* Timeline */}
-        <div className="relative">
+        <div ref={timelineRef} className="relative">
+          {/* Main timeline line */}
+          <div className="absolute left-0 md:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-primary/50 via-primary/20 to-primary/50 md:-translate-x-1/2" />
+
+          {/* Scrolling animated dot */}
+          <ScrollingDot top={dotTop} scale={dotScale} opacity={dotOpacity} />
+
           {experiences.map((exp, index) => (
             <TimelineItem key={`${exp.company}-${exp.role}`} experience={exp} index={index} />
           ))}
